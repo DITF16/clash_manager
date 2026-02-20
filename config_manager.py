@@ -10,6 +10,7 @@ class ConfigManager:
     def __init__(self):
         self.original_file = "original_config.yaml"
         self.merged_file = "config.yaml"
+        self.data_dir = "."  # 数据目录
         self.modifications_dir = "modifications"  # 存放修改文件的目录
         
         # 创建修改文件目录
@@ -29,13 +30,18 @@ class ConfigManager:
 
     def load_custom(self):
         """加载用户自定义配置"""
-        # 从修改文件系统中加载，如果没有则返回空配置
+        custom_file = os.path.join(self.data_dir, "user_custom.yaml")
+        if os.path.exists(custom_file):
+            with open(custom_file, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f) or {}
+                return config
         return {"proxy-groups": [], "rules": []}
 
     def save_custom(self, custom_config):
         """保存用户自定义配置"""
-        # 配置文件通过修改系统管理，不再直接保存
-        pass
+        custom_file = os.path.join(self.data_dir, "user_custom.yaml")
+        with open(custom_file, "w", encoding="utf-8") as f:
+            yaml.dump(custom_config, f, allow_unicode=True, default_flow_style=False)
 
     def get_merged_config(self):
         """合并原始配置和自定义配置"""
