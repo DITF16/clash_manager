@@ -109,6 +109,13 @@ def export_config():
     config = config_manager.get_merged_config()
     return jsonify({"config": yaml.dump(config, allow_unicode=True)})
 
+@app.route('/api/rules/move', methods=['POST'])
+def move_rule():
+    """移动规则位置"""
+    data = request.json
+    result = config_manager.move_rule(data.get('index'), data.get('direction'))
+    return jsonify(result)
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

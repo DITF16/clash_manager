@@ -30,48 +30,90 @@
         <!-- 规则管理 -->
         <div class="card">
             <h2>📋 规则管理</h2>
+            <div class="search-bar">
+                <input type="text" id="ruleSearch" placeholder="搜索规则..." oninput="filterRules()">
+                <select id="ruleTypeFilter" onchange="filterRules()">
+                    <option value="">全部类型</option>
+                    <option value="DOMAIN-SUFFIX">DOMAIN-SUFFIX</option>
+                    <option value="DOMAIN">DOMAIN</option>
+                    <option value="DOMAIN-KEYWORD">DOMAIN-KEYWORD</option>
+                    <option value="IP-CIDR">IP-CIDR</option>
+                    <option value="IP-CIDR6">IP-CIDR6</option>
+                </select>
+            </div>
+            <div class="rule-stats">
+                显示 <span id="showingCount">0</span> / <span id="totalCount">0</span> 条规则
+            </div>
             <button onclick="showAddRuleModal()" class="btn btn-primary">添加规则</button>
             <div id="rulesList" class="list-container"></div>
+            <div id="rulePagination" class="pagination"></div>
         </div>
     </div>
     
     <!-- 代理组模态框 -->
     <div id="groupModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-large">
             <span class="close" onclick="closeModal('groupModal')">&times;</span>
             <h3 id="groupModalTitle">添加代理组</h3>
             <form id="groupForm">
                 <input type="hidden" id="groupOldName">
-                <div class="form-group">
-                    <label>名称:</label>
-                    <input type="text" id="groupName" required>
-                </div>
-                <div class="form-group">
-                    <label>类型:</label>
-                    <select id="groupType" onchange="toggleUrlTestOptions()">
-                        <option value="select">select</option>
-                        <option value="url-test">url-test</option>
-                    </select>
-                </div>
-                <div id="urlTestOptions" style="display:none;">
+                <div class="form-row">
                     <div class="form-group">
-                        <label>测试 URL:</label>
-                        <input type="text" id="groupUrl" value="http://www.gstatic.com/generate_204">
+                        <label>名称:</label>
+                        <input type="text" id="groupName" required>
                     </div>
                     <div class="form-group">
-                        <label>间隔(秒):</label>
-                        <input type="number" id="groupInterval" value="300">
-                    </div>
-                    <div class="form-group">
-                        <label>容差(ms):</label>
-                        <input type="number" id="groupTolerance" value="50">
+                        <label>类型:</label>
+                        <select id="groupType" onchange="toggleUrlTestOptions()">
+                            <option value="select">select</option>
+                            <option value="url-test">url-test</option>
+                        </select>
                     </div>
                 </div>
+                <div id="urlTestOptions" class="url-test-options" style="display:none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>测试 URL:</label>
+                            <input type="text" id="groupUrl" value="http://www.gstatic.com/generate_204">
+                        </div>
+                        <div class="form-group">
+                            <label>间隔(秒):</label>
+                            <input type="number" id="groupInterval" value="300">
+                        </div>
+                        <div class="form-group">
+                            <label>容差(ms):</label>
+                            <input type="number" id="groupTolerance" value="50">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 代理节点选择区域 -->
                 <div class="form-group">
                     <label>代理节点:</label>
-                    <select id="groupProxies" multiple size="10"></select>
+                    <div class="proxy-selector">
+                        <div class="proxy-available">
+                            <h4>可用节点 <span id="availableCount">(0)</span></h4>
+                            <input type="text" class="search-input" placeholder="搜索节点..." oninput="filterAvailableProxies()">
+                            <div id="availableProxies" class="proxy-list"></div>
+                        </div>
+                        <div class="proxy-actions">
+                            <button type="button" class="btn btn-sm" onclick="addSelectedProxies()">→ 添加</button>
+                            <button type="button" class="btn btn-sm" onclick="addAllProxies()">» 全部添加</button>
+                            <button type="button" class="btn btn-sm" onclick="removeSelectedProxies()">← 移除</button>
+                            <button type="button" class="btn btn-sm" onclick="clearAllProxies()">« 清空</button>
+                        </div>
+                        <div class="proxy-selected">
+                            <h4>已选节点 <span id="selectedCount">(0)</span></h4>
+                            <input type="text" class="search-input" placeholder="搜索已选..." oninput="filterSelectedProxies()">
+                            <div id="selectedProxies" class="proxy-list"></div>
+                        </div>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary">保存</button>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn" onclick="closeModal('groupModal')">取消</button>
+                </div>
             </form>
         </div>
     </div>
@@ -95,283 +137,556 @@
                 </div>
                 <div class="form-group">
                     <label>值:</label>
-                    <input type="text" id="ruleValue" required placeholder="域名或IP段">
+                    <input type="text" id="ruleValue" required placeholder="域名或 IP 段">
                 </div>
                 <div class="form-group">
                     <label>代理组:</label>
                     <select id="ruleProxy"></select>
                 </div>
                 <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="ruleNoResolve"> no-resolve
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="ruleNoResolve"> 
+                        <span>no-resolve (不解析 DNS)</span>
                     </label>
                 </div>
-                <button type="submit" class="btn btn-primary">保存</button>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn" onclick="closeModal('ruleModal')">取消</button>
+                </div>
             </form>
         </div>
     </div>
     
-    <script>
-        let allProxies = [];
-        let allGroups = [];
-        let allRules = [];
+    <!-- 批量操作提示 -->
+    <div id="toast" class="toast"></div>
+</body>
+</html>
+
+<script>
+    let allProxies = [];
+    let allGroups = [];
+    let allRules = [];
+    let filteredRules = [];
+    let selectedProxies = [];
+    let currentPage = 1;
+    const rulesPerPage = 20;
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', function() {
+        loadProxies();
+        loadProxyGroups();
+        loadRules();
+    });
+    
+    async function loadProxies() {
+        const res = await fetch('/api/proxies');
+        const data = await res.json();
+        allProxies = data.proxies;
+        renderAvailableProxies();
+        updateRuleProxySelect();
+    }
+    
+    async function loadProxyGroups() {
+        const res = await fetch('/api/proxy-groups');
+        const data = await res.json();
+        allGroups = data['proxy-groups'];
+        renderProxyGroups();
+        updateRuleProxySelect();
+    }
+    
+    async function loadRules() {
+        const res = await fetch('/api/rules');
+        const data = await res.json();
+        allRules = data.rules;
+        filteredRules = [...allRules];
+        document.getElementById('totalCount').textContent = allRules.length;
+        currentPage = 1;
+        renderRules();
+    }
+    
+    function updateRuleProxySelect() {
+        const ruleProxy = document.getElementById('ruleProxy');
+        ruleProxy.innerHTML = allGroups.map(g => 
+            `<option value="${g.name}">${g.name}</option>`
+        ).join('');
+    }
+    
+    // ==================== 代理组渲染 ====================
+    function renderProxyGroups() {
+        const container = document.getElementById('proxyGroupsList');
+        if (allGroups.length === 0) {
+            container.innerHTML = '<div class="empty-state">暂无代理组，点击"添加代理组"创建</div>';
+            return;
+        }
+        container.innerHTML = allGroups.map((g, i) => `
+            <div class="list-item">
+                <div class="item-info">
+                    <strong class="group-name">${g.name}</strong>
+                    <span class="badge">${g.type}</span>
+                    <span class="proxy-count">📌 ${g.proxies?.length || 0} 个节点</span>
+                    ${g.type === 'url-test' ? `<span class="badge badge-info">URL: ${g.url || 'default'}</span>` : ''}
+                </div>
+                <div class="item-actions">
+                    <button onclick="editGroup(${i})" class="btn btn-sm btn-primary">编辑</button>
+                    <button onclick="duplicateGroup(${i})" class="btn btn-sm btn-info">复制</button>
+                    <button onclick="deleteGroup('${g.name}')" class="btn btn-sm btn-danger">删除</button>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // ==================== 代理节点选择器 ====================
+    function renderAvailableProxies(filter = '') {
+        const container = document.getElementById('availableProxies');
+        const filtered = allProxies.filter(p => 
+            p.toLowerCase().includes(filter.toLowerCase()) && 
+            !selectedProxies.includes(p)
+        );
+        document.getElementById('availableCount').textContent = `(${filtered.length})`;
         
-        // 页面加载时获取数据
-        document.addEventListener('DOMContentLoaded', function() {
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="empty-state">无可用节点</div>';
+            return;
+        }
+        
+        container.innerHTML = filtered.map(p => `
+            <div class="proxy-item" data-proxy="${p}">
+                <input type="checkbox" class="proxy-checkbox" value="${p}">
+                <span class="proxy-name">${p}</span>
+            </div>
+        `).join('');
+    }
+    
+    function renderSelectedProxies(filter = '') {
+        const container = document.getElementById('selectedProxies');
+        const filtered = selectedProxies.filter(p => 
+            p.toLowerCase().includes(filter.toLowerCase())
+        );
+        document.getElementById('selectedCount').textContent = `(${filtered.length})`;
+        
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="empty-state">请选择节点</div>';
+            return;
+        }
+        
+        container.innerHTML = filtered.map((p, i) => `
+            <div class="proxy-item selected" data-proxy="${p}">
+                <span class="proxy-index">${i + 1}.</span>
+                <span class="proxy-name">${p}</span>
+                <button type="button" class="btn-remove" onclick="removeProxy('${p}')">×</button>
+                <button type="button" class="btn-move" onclick="moveProxyUp('${p}')">↑</button>
+                <button type="button" class="btn-move" onclick="moveProxyDown('${p}')">↓</button>
+            </div>
+        `).join('');
+    }
+    
+    function filterAvailableProxies() {
+        const filter = event.target.value;
+        renderAvailableProxies(filter);
+    }
+    
+    function filterSelectedProxies() {
+        const filter = event.target.value;
+        renderSelectedProxies(filter);
+    }
+    
+    function addSelectedProxies() {
+        const checkboxes = document.querySelectorAll('#availableProxies .proxy-checkbox:checked');
+        checkboxes.forEach(cb => {
+            if (!selectedProxies.includes(cb.value)) {
+                selectedProxies.push(cb.value);
+            }
+        });
+        renderAvailableProxies();
+        renderSelectedProxies();
+    }
+    
+    function addAllProxies() {
+        const available = allProxies.filter(p => !selectedProxies.includes(p));
+        selectedProxies = [...selectedProxies, ...available];
+        renderAvailableProxies();
+        renderSelectedProxies();
+    }
+    
+    function removeSelectedProxies() {
+        const checkboxes = document.querySelectorAll('#selectedProxies .proxy-checkbox:checked');
+        checkboxes.forEach(cb => {
+            selectedProxies = selectedProxies.filter(p => p !== cb.value);
+        });
+        renderAvailableProxies();
+        renderSelectedProxies();
+    }
+    
+    function clearAllProxies() {
+        selectedProxies = [];
+        renderAvailableProxies();
+        renderSelectedProxies();
+    }
+    
+    function removeProxy(name) {
+        selectedProxies = selectedProxies.filter(p => p !== name);
+        renderAvailableProxies();
+        renderSelectedProxies();
+    }
+    
+    function moveProxyUp(name) {
+        const index = selectedProxies.indexOf(name);
+        if (index > 0) {
+            [selectedProxies[index], selectedProxies[index - 1]] = 
+            [selectedProxies[index - 1], selectedProxies[index]];
+            renderSelectedProxies();
+        }
+    }
+    
+    function moveProxyDown(name) {
+        const index = selectedProxies.indexOf(name);
+        if (index < selectedProxies.length - 1) {
+            [selectedProxies[index], selectedProxies[index + 1]] = 
+            [selectedProxies[index + 1], selectedProxies[index]];
+            renderSelectedProxies();
+        }
+    }
+    
+    // ==================== 规则管理 ====================
+    function filterRules() {
+        const search = document.getElementById('ruleSearch').value.toLowerCase();
+        const typeFilter = document.getElementById('ruleTypeFilter').value;
+        
+        filteredRules = allRules.filter(r => {
+            const parts = r.split(',');
+            const matchSearch = r.toLowerCase().includes(search);
+            const matchType = !typeFilter || parts[0] === typeFilter;
+            return matchSearch && matchType;
+        });
+        
+        document.getElementById('showingCount').textContent = filteredRules.length;
+        currentPage = 1;
+        renderRules();
+    }
+    
+    function renderRules() {
+        const container = document.getElementById('rulesList');
+        const start = (currentPage - 1) * rulesPerPage;
+        const end = start + rulesPerPage;
+        const pageRules = filteredRules.slice(start, end);
+        
+        if (pageRules.length === 0) {
+            container.innerHTML = '<div class="empty-state">暂无规则，点击"添加规则"创建</div>';
+            renderPagination();
+            return;
+        }
+        
+        container.innerHTML = pageRules.map((r, localIndex) => {
+            const globalIndex = start + localIndex;
+            const parts = r.split(',');
+            return `
+                <div class="list-item rule-item">
+                    <div class="item-info">
+                        <span class="badge badge-${getRuleTypeColor(parts[0])}">${parts[0]}</span>
+                        <code class="rule-value">${parts[1]}</code>
+                        <span class="rule-arrow">→</span>
+                        <span class="rule-proxy">${parts[2]}</span>
+                        ${parts[3] ? '<span class="badge badge-info">no-resolve</span>' : ''}
+                    </div>
+                    <div class="item-actions">
+                        <button onclick="editRule(${globalIndex})" class="btn btn-sm btn-primary">编辑</button>
+                        <button onclick="moveRuleUp(${globalIndex})" class="btn btn-sm" title="上移">↑</button>
+                        <button onclick="moveRuleDown(${globalIndex})" class="btn btn-sm" title="下移">↓</button>
+                        <button onclick="deleteRule(${globalIndex})" class="btn btn-sm btn-danger">删除</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        renderPagination();
+    }
+    
+    function getRuleTypeColor(type) {
+        const colors = {
+            'DOMAIN-SUFFIX': 'primary',
+            'DOMAIN': 'success',
+            'DOMAIN-KEYWORD': 'warning',
+            'IP-CIDR': 'danger',
+            'IP-CIDR6': 'info'
+        };
+        return colors[type] || 'primary';
+    }
+    
+    function renderPagination() {
+        const totalPages = Math.ceil(filteredRules.length / rulesPerPage);
+        const container = document.getElementById('rulePagination');
+        
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        let html = '<div class="pagination-buttons">';
+        html += `<button onclick="changePage(1)" ${currentPage === 1 ? 'disabled' : ''}>首页</button>`;
+        html += `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>上一页</button>`;
+        
+        for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+            html += `<button onclick="changePage(${i})" class="${i === currentPage ? 'active' : ''}">${i}</button>`;
+        }
+        
+        html += `<button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>下一页</button>`;
+        html += `<button onclick="changePage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>末页</button>`;
+        html += '</div>';
+        
+        container.innerHTML = html;
+    }
+    
+    function changePage(page) {
+        const totalPages = Math.ceil(filteredRules.length / rulesPerPage);
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        renderRules();
+    }
+    
+    async function moveRuleUp(index) {
+        if (index <= 0) return;
+        const res = await fetch('/api/rules/move', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({index, direction: 'up'})
+        });
+        const result = await res.json();
+        if (result.success) loadRules();
+    }
+    
+    async function moveRuleDown(index) {
+        if (index >= allRules.length - 1) return;
+        const res = await fetch('/api/rules/move', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({index, direction: 'down'})
+        });
+        const result = await res.json();
+        if (result.success) loadRules();
+    }
+    
+    // ==================== 模态框操作 ====================
+    function toggleUrlTestOptions() {
+        const type = document.getElementById('groupType').value;
+        document.getElementById('urlTestOptions').style.display = 
+            type === 'url-test' ? 'block' : 'none';
+    }
+    
+    function showAddGroupModal() {
+        selectedProxies = [];
+        document.getElementById('groupModalTitle').textContent = '添加代理组';
+        document.getElementById('groupForm').reset();
+        document.getElementById('groupOldName').value = '';
+        document.getElementById('groupType').value = 'select';
+        toggleUrlTestOptions();
+        renderAvailableProxies();
+        renderSelectedProxies();
+        document.getElementById('groupModal').style.display = 'block';
+    }
+    
+    function editGroup(index) {
+        const g = allGroups[index];
+        selectedProxies = [...(g.proxies || [])];
+        document.getElementById('groupModalTitle').textContent = '编辑代理组';
+        document.getElementById('groupOldName').value = g.name;
+        document.getElementById('groupName').value = g.name;
+        document.getElementById('groupType').value = g.type;
+        document.getElementById('groupUrl').value = g.url || 'http://www.gstatic.com/generate_204';
+        document.getElementById('groupInterval').value = g.interval || 300;
+        document.getElementById('groupTolerance').value = g.tolerance || 50;
+        toggleUrlTestOptions();
+        renderAvailableProxies();
+        renderSelectedProxies();
+        document.getElementById('groupModal').style.display = 'block';
+    }
+    
+    async function duplicateGroup(index) {
+        const g = allGroups[index];
+        const newName = g.name + ' (copy)';
+        const data = {
+            name: newName,
+            type: g.type,
+            proxies: [...(g.proxies || [])]
+        };
+        if (g.type === 'url-test') {
+            data.url = g.url;
+            data.interval = g.interval;
+            data.tolerance = g.tolerance;
+        }
+        
+        const res = await fetch('/api/proxy-groups/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        showToast(result.message);
+        if (result.success) loadProxyGroups();
+    }
+    
+    function showAddRuleModal() {
+        document.getElementById('ruleModalTitle').textContent = '添加规则';
+        document.getElementById('ruleForm').reset();
+        document.getElementById('ruleIndex').value = '';
+        document.getElementById('ruleModal').style.display = 'block';
+    }
+    
+    function editRule(index) {
+        const r = allRules[index].split(',');
+        document.getElementById('ruleModalTitle').textContent = '编辑规则';
+        document.getElementById('ruleIndex').value = index;
+        document.getElementById('ruleType').value = r[0];
+        document.getElementById('ruleValue').value = r[1];
+        document.getElementById('ruleProxy').value = r[2];
+        document.getElementById('ruleNoResolve').checked = r[3] === 'no-resolve';
+        document.getElementById('ruleModal').style.display = 'block';
+    }
+    
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+    
+    // ==================== 表单提交 ====================
+    document.getElementById('groupForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const data = {
+            name: document.getElementById('groupName').value,
+            old_name: document.getElementById('groupOldName').value,
+            type: document.getElementById('groupType').value,
+            proxies: selectedProxies
+        };
+        
+        if (data.type === 'url-test') {
+            data.url = document.getElementById('groupUrl').value;
+            data.interval = parseInt(document.getElementById('groupInterval').value);
+            data.tolerance = parseInt(document.getElementById('groupTolerance').value);
+        }
+        
+        const url = data.old_name ? '/api/proxy-groups/update' : '/api/proxy-groups/add';
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        showToast(result.message);
+        if (result.success) {
+            closeModal('groupModal');
+            loadProxyGroups();
+        }
+    };
+    
+    document.getElementById('ruleForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const data = {
+            type: document.getElementById('ruleType').value,
+            value: document.getElementById('ruleValue').value,
+            proxy: document.getElementById('ruleProxy').value,
+            no_resolve: document.getElementById('ruleNoResolve').checked
+        };
+        
+        const index = document.getElementById('ruleIndex').value;
+        if (index !== '') {
+            data.index = parseInt(index);
+        }
+        
+        const url = index !== '' ? '/api/rules/update' : '/api/rules/add';
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        showToast(result.message);
+        if (result.success) {
+            closeModal('ruleModal');
+            loadRules();
+        }
+    };
+    
+    // ==================== 删除操作 ====================
+    async function deleteGroup(name) {
+        if (!confirm(`确定删除代理组 "${name}"？`)) return;
+        const res = await fetch('/api/proxy-groups/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name})
+        });
+        const result = await res.json();
+        showToast(result.message);
+        loadProxyGroups();
+    }
+    
+    async function deleteRule(index) {
+        if (!confirm('确定删除该规则？')) return;
+        const res = await fetch('/api/rules/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({index})
+        });
+        const result = await res.json();
+        showToast(result.message);
+        loadRules();
+    }
+    
+    // ==================== 订阅和导出 ====================
+    async function refreshSubscription() {
+        const url = document.getElementById('subscriptionUrl').value;
+        if (!url) {
+            showToast('请输入订阅 URL', 'error');
+            return;
+        }
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = '更新中...';
+        
+        const res = await fetch('/api/config/refresh', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({subscription_url: url})
+        });
+        const result = await res.json();
+        showToast(result.message);
+        btn.disabled = false;
+        btn.textContent = '更新订阅';
+        
+        if (result.success) {
             loadProxies();
             loadProxyGroups();
             loadRules();
-        });
-        
-        async function loadProxies() {
-            const res = await fetch('/api/proxies');
-            const data = await res.json();
-            allProxies = data.proxies;
-            updateProxySelects();
         }
-        
-        async function loadProxyGroups() {
-            const res = await fetch('/api/proxy-groups');
-            const data = await res.json();
-            allGroups = data['proxy-groups'];
-            renderProxyGroups();
-            updateProxySelects();
+    }
+    
+    async function exportConfig() {
+        const res = await fetch('/api/config/export');
+        const data = await res.json();
+        const blob = new Blob([data.config], {type: 'text/yaml'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `clash_config_${new Date().toISOString().slice(0,10)}.yaml`;
+        a.click();
+        showToast('配置已导出');
+    }
+    
+    // ==================== 工具函数 ====================
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = `toast show toast-${type}`;
+        setTimeout(() => toast.className = 'toast', 3000);
+    }
+    
+    // 点击模态框外部关闭
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = 'none';
         }
-        
-        async function loadRules() {
-            const res = await fetch('/api/rules');
-            const data = await res.json();
-            allRules = data.rules;
-            renderRules();
+    }
+    
+    // 键盘快捷键
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
         }
-        
-        function updateProxySelects() {
-            // 更新代理组中的代理选择
-            const groupProxies = document.getElementById('groupProxies');
-            groupProxies.innerHTML = allProxies.map(p => 
-                `<option value="${p}">${p}</option>`
-            ).join('');
-            
-            // 更新规则中的代理组选择
-            const ruleProxy = document.getElementById('ruleProxy');
-            ruleProxy.innerHTML = allGroups.map(g => 
-                `<option value="${g.name}">${g.name}</option>`
-            ).join('');
-        }
-        
-        function renderProxyGroups() {
-            const container = document.getElementById('proxyGroupsList');
-            container.innerHTML = allGroups.map((g, i) => `
-                <div class="list-item">
-                    <div class="item-info">
-                        <strong>${g.name}</strong>
-                        <span class="badge">${g.type}</span>
-                        <small>代理数: ${g.proxies?.length || 0}</small>
-                    </div>
-                    <div class="item-actions">
-                        <button onclick="editGroup(${i})" class="btn btn-sm">编辑</button>
-                        <button onclick="deleteGroup('${g.name}')" class="btn btn-sm btn-danger">删除</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-        
-        function renderRules() {
-            const container = document.getElementById('rulesList');
-            container.innerHTML = allRules.map((r, i) => {
-                const parts = r.split(',');
-                return `
-                    <div class="list-item">
-                        <div class="item-info">
-                            <span class="badge">${parts[0]}</span>
-                            <code>${parts[1]}</code>
-                            <span>→ ${parts[2]}</span>
-                            ${parts[3] ? '<span class="badge badge-info">no-resolve</span>' : ''}
-                        </div>
-                        <div class="item-actions">
-                            <button onclick="editRule(${i})" class="btn btn-sm">编辑</button>
-                            <button onclick="deleteRule(${i})" class="btn btn-sm btn-danger">删除</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        function toggleUrlTestOptions() {
-            const type = document.getElementById('groupType').value;
-            document.getElementById('urlTestOptions').style.display = 
-                type === 'url-test' ? 'block' : 'none';
-        }
-        
-        function showAddGroupModal() {
-            document.getElementById('groupModalTitle').textContent = '添加代理组';
-            document.getElementById('groupForm').reset();
-            document.getElementById('groupOldName').value = '';
-            toggleUrlTestOptions();
-            document.getElementById('groupModal').style.display = 'block';
-        }
-        
-        function editGroup(index) {
-            const g = allGroups[index];
-            document.getElementById('groupModalTitle').textContent = '编辑代理组';
-            document.getElementById('groupOldName').value = g.name;
-            document.getElementById('groupName').value = g.name;
-            document.getElementById('groupType').value = g.type;
-            document.getElementById('groupUrl').value = g.url || '';
-            document.getElementById('groupInterval').value = g.interval || 300;
-            document.getElementById('groupTolerance').value = g.tolerance || 50;
-            
-            // 选择已配置的代理
-            const proxiesSelect = document.getElementById('groupProxies');
-            Array.from(proxiesSelect.options).forEach(opt => {
-                opt.selected = g.proxies?.includes(opt.value);
-            });
-            
-            toggleUrlTestOptions();
-            document.getElementById('groupModal').style.display = 'block';
-        }
-        
-        function showAddRuleModal() {
-            document.getElementById('ruleModalTitle').textContent = '添加规则';
-            document.getElementById('ruleForm').reset();
-            document.getElementById('ruleIndex').value = '';
-            document.getElementById('ruleModal').style.display = 'block';
-        }
-        
-        function editRule(index) {
-            const r = allRules[index].split(',');
-            document.getElementById('ruleModalTitle').textContent = '编辑规则';
-            document.getElementById('ruleIndex').value = index;
-            document.getElementById('ruleType').value = r[0];
-            document.getElementById('ruleValue').value = r[1];
-            document.getElementById('ruleProxy').value = r[2];
-            document.getElementById('ruleNoResolve').checked = r[3] === 'no-resolve';
-            document.getElementById('ruleModal').style.display = 'block';
-        }
-        
-        function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
-        }
-        
-        // 代理组表单提交
-        document.getElementById('groupForm').onsubmit = async function(e) {
-            e.preventDefault();
-            const data = {
-                name: document.getElementById('groupName').value,
-                old_name: document.getElementById('groupOldName').value,
-                type: document.getElementById('groupType').value,
-                proxies: Array.from(document.getElementById('groupProxies').selectedOptions).map(o => o.value)
-            };
-            
-            if (data.type === 'url-test') {
-                data.url = document.getElementById('groupUrl').value;
-                data.interval = parseInt(document.getElementById('groupInterval').value);
-                data.tolerance = parseInt(document.getElementById('groupTolerance').value);
-            }
-            
-            const url = data.old_name ? '/api/proxy-groups/update' : '/api/proxy-groups/add';
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            const result = await res.json();
-            alert(result.message);
-            if (result.success) {
-                closeModal('groupModal');
-                loadProxyGroups();
-            }
-        };
-        
-        // 规则表单提交
-        document.getElementById('ruleForm').onsubmit = async function(e) {
-            e.preventDefault();
-            const data = {
-                type: document.getElementById('ruleType').value,
-                value: document.getElementById('ruleValue').value,
-                proxy: document.getElementById('ruleProxy').value,
-                no_resolve: document.getElementById('ruleNoResolve').checked
-            };
-            
-            const index = document.getElementById('ruleIndex').value;
-            if (index !== '') {
-                data.index = parseInt(index);
-            }
-            
-            const url = index !== '' ? '/api/rules/update' : '/api/rules/add';
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            const result = await res.json();
-            alert(result.message);
-            if (result.success) {
-                closeModal('ruleModal');
-                loadRules();
-            }
-        };
-        
-        async function deleteGroup(name) {
-            if (!confirm('确定删除该代理组？')) return;
-            const res = await fetch('/api/proxy-groups/delete', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name})
-            });
-            const result = await res.json();
-            alert(result.message);
-            loadProxyGroups();
-        }
-        
-        async function deleteRule(index) {
-            if (!confirm('确定删除该规则？')) return;
-            const res = await fetch('/api/rules/delete', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({index})
-            });
-            const result = await res.json();
-            alert(result.message);
-            loadRules();
-        }
-        
-        async function refreshSubscription() {
-            const url = document.getElementById('subscriptionUrl').value;
-            if (!url) {
-                alert('请输入订阅 URL');
-                return;
-            }
-            const res = await fetch('/api/config/refresh', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({subscription_url: url})
-            });
-            const result = await res.json();
-            alert(result.message);
-            if (result.success) {
-                loadProxies();
-                loadProxyGroups();
-                loadRules();
-            }
-        }
-        
-        async function exportConfig() {
-            const res = await fetch('/api/config/export');
-            const data = await res.json();
-            const blob = new Blob([data.config], {type: 'text/yaml'});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'config.yaml';
-            a.click();
-        }
-        
-        // 点击模态框外部关闭
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
-                event.target.style.display = 'none';
-            }
-        }
-    </script>
-</body>
-</html>
+    });
+</script>

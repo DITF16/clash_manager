@@ -198,3 +198,19 @@ class ConfigManager:
             return {"success": True, "message": "订阅更新成功，自定义配置已合并"}
         except Exception as e:
             return {"success": False, "message": f"更新失败：{str(e)}"}
+
+    def move_rule(self, index, direction):
+        """移动规则位置"""
+        custom = self.load_custom()
+        rules = custom.get('rules', [])
+        
+        if direction == 'up' and index > 0:
+            rules[index], rules[index - 1] = rules[index - 1], rules[index]
+        elif direction == 'down' and index < len(rules) - 1:
+            rules[index], rules[index + 1] = rules[index + 1], rules[index]
+        else:
+            return {'success': False, 'message': '无法移动'}
+        
+        custom['rules'] = rules
+        self.save_custom(custom)
+        return {'success': True, 'message': '移动成功'}
