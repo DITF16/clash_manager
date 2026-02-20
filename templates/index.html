@@ -110,14 +110,25 @@
                     </div>
                 </div>
                 
-                <!-- 代理节点选择区域 -->
+<!-- 代理节点选择区域 -->
                 <div class="form-group">
                     <label>代理节点:</label>
                     <div class="proxy-selector">
                         <div class="proxy-available">
-                            <h4>可用节点 <span id="availableCount">(0)</span></h4>
-                            <input type="text" class="search-input" placeholder="搜索节点..." oninput="filterAvailableProxies()">
-                            <div id="availableProxies" class="proxy-list"></div>
+                            <div class="proxy-tabs">
+                                <button type="button" class="tab-btn active" onclick="switchProxyTab('nodes')">节点</button>
+                                <button type="button" class="tab-btn" onclick="switchProxyTab('groups')">代理组</button>
+                            </div>
+                            <div id="nodesTab" class="tab-content">
+                                <h4>可用节点 <span id="availableCount">(0)</span></h4>
+                                <input type="text" class="search-input" placeholder="搜索节点..." oninput="filterAvailableProxies()">
+                                <div id="availableProxies" class="proxy-list"></div>
+                            </div>
+                            <div id="groupsTab" class="tab-content" style="display:none;">
+                                <h4>可用代理组 <span id="availableGroupsCount">(0)</span></h4>
+                                <input type="text" class="search-input" placeholder="搜索代理组..." oninput="filterAvailableGroups()">
+                                <div id="availableGroups" class="proxy-list"></div>
+                            </div>
                         </div>
                         <div class="proxy-actions">
                             <button type="button" class="btn btn-sm" onclick="addSelectedProxies()">→ 添加</button>
@@ -131,6 +142,7 @@
                             <div id="selectedProxies" class="proxy-list"></div>
                         </div>
                     </div>
+                </div>
                 </div>
                 
                 <div class="form-actions">
@@ -308,49 +320,129 @@
         renderAvailableProxies(filter);
     }
     
-    function filterSelectedProxies() {
-        const filter = event.target.value;
-        renderSelectedProxies(filter);
-    }
+function filterSelectedProxies() {
+         const filter = event.target.value;
+         renderSelectedProxies(filter);
+     }
+     
+     // ==================== 标签页切换 ====================
+     function switchProxyTab(tab) {
+         const nodeTab = document.getElementById('nodesTab');
+         const groupTab = document.getElementById('groupsTab');
+         const btns = document.querySelectorAll('.tab-btn');
+         
+         btns.forEach(b => b.classList.remove('active'));
+         
+         if (tab === 'nodes') {
+             nodeTab.style.display = 'block';
+             groupTab.style.display = 'none';
+             btns[0].classList.add('active');
+         } else {
+             nodeTab.style.display = 'none';
+             groupTab.style.display = 'block';
+             btns[1].classList.add('active');
+             renderAvailableGroups();
+         }
+     }
+     
+     // ==================== 代理组选择器 ====================
+     function renderAvailableGroups(filter = '') {
+         const container = document.getElementById('availableGroups');
+         // 排除当前编辑的代理组（如果有）
+         const currentGroup = document.getElementById('groupOldName').value;
+         const filtered = allGroups.filter(g => 
+             g.name.toLowerCase().includes(filter.toLowerCase()) && 
+             !selectedProxies.includes(g.name) &&
+             g.name !== currentGroup
+         );
+         document.getElementById('availableGroupsCount').textContent = `(${filtered.length})`;
+         
+         if (filtered.length === 0) {
+             container.innerHTML = '<div class="empty-state">无可用代理组</div>';
+             return;
+         }
+         
+         container.innerHTML = filtered.map(g => `
+             <div class="proxy-item group-item" data-proxy="${g.name}">
+                 <input type="checkbox" class="proxy-checkbox" value="${g.name}">
+                 <span class="proxy-name">${g.name}</span>
+                 <span class="group-badge">${g.proxies?.length || 0}个</span>
+             </div>
+         `).join('');
+     }
+     
+     function filterAvailableGroups() {
+         const filter = event.target.value;
+         renderAvailableGroups(filter);
+     }
     
-    function addSelectedProxies() {
-        const checkboxes = document.querySelectorAll('#availableProxies .proxy-checkbox:checked');
-        checkboxes.forEach(cb => {
-            if (!selectedProxies.includes(cb.value)) {
-                selectedProxies.push(cb.value);
-            }
-        });
-        renderAvailableProxies();
-        renderSelectedProxies();
-    }
+function addSelectedProxies() {
+         const currentTab = document.getElementById('nodesTab').style.display === 'none' ? 'groups' : 'nodes';
+         
+         if (currentTab === 'nodes') {
+             // 添加节点
+             const checkboxes = document.querySelectorAll('#availableProxies .proxy-checkbox:checked');
+             checkboxes.forEach(cb => {
+                 if (!selectedProxies.includes(cb.value)) {
+                     selectedProxies.push(cb.value);
+                 }
+             });
+         } else {
+             // 添加代理组
+             const checkboxes = document.querySelectorAll('#availableGroups .proxy-checkbox:checked');
+             checkboxes.forEach(cb => {
+                 if (!selectedProxies.includes(cb.value)) {
+                     selectedProxies.push(cb.value);
+                 }
+             });
+         }
+         
+         renderAvailableProxies();
+         renderAvailableGroups();
+         renderSelectedProxies();
+     }
     
-    function addAllProxies() {
-        const available = allProxies.filter(p => !selectedProxies.includes(p));
-        selectedProxies = [...selectedProxies, ...available];
-        renderAvailableProxies();
-        renderSelectedProxies();
-    }
+function addAllProxies() {
+         const currentTab = document.getElementById('nodesTab').style.display === 'none' ? 'groups' : 'nodes';
+         
+         if (currentTab === 'nodes') {
+             // 添加所有节点
+             const available = allProxies.filter(p => !selectedProxies.includes(p));
+             selectedProxies = [...selectedProxies, ...available];
+         } else {
+             // 添加所有代理组
+             const available = allGroups.filter(g => !selectedProxies.includes(g.name));
+             selectedProxies = [...selectedProxies, ...available.map(g => g.name)];
+         }
+         
+         renderAvailableProxies();
+         renderAvailableGroups();
+         renderSelectedProxies();
+     }
     
-    function removeSelectedProxies() {
-        const checkboxes = document.querySelectorAll('#selectedProxies .proxy-checkbox:checked');
-        checkboxes.forEach(cb => {
-            selectedProxies = selectedProxies.filter(p => p !== cb.value);
-        });
-        renderAvailableProxies();
-        renderSelectedProxies();
-    }
+function removeSelectedProxies() {
+         const checkboxes = document.querySelectorAll('#selectedProxies .proxy-checkbox:checked');
+         checkboxes.forEach(cb => {
+             selectedProxies = selectedProxies.filter(p => p !== cb.value);
+         });
+         renderAvailableProxies();
+         renderAvailableGroups();
+         renderSelectedProxies();
+     }
     
-    function clearAllProxies() {
-        selectedProxies = [];
-        renderAvailableProxies();
-        renderSelectedProxies();
-    }
+function clearAllProxies() {
+         selectedProxies = [];
+         renderAvailableProxies();
+         renderAvailableGroups();
+         renderSelectedProxies();
+     }
     
-    function removeProxy(name) {
-        selectedProxies = selectedProxies.filter(p => p !== name);
-        renderAvailableProxies();
-        renderSelectedProxies();
-    }
+function removeProxy(name) {
+         selectedProxies = selectedProxies.filter(p => p !== name);
+         renderAvailableProxies();
+         renderAvailableGroups();
+         renderSelectedProxies();
+     }
     
     function moveProxyUp(name) {
         const index = selectedProxies.indexOf(name);
