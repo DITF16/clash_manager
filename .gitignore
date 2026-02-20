@@ -27,6 +27,7 @@ share/python-wheels/
 MANIFEST
 
 *config.yaml
+user_custom.yaml
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
