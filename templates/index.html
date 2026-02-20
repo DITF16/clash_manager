@@ -30,21 +30,44 @@
         <!-- 规则管理 -->
         <div class="card">
             <h2>📋 规则管理</h2>
-            <div class="search-bar">
-                <input type="text" id="ruleSearch" placeholder="搜索规则..." oninput="filterRules()">
-                <select id="ruleTypeFilter" onchange="filterRules()">
-                    <option value="">全部类型</option>
-                    <option value="DOMAIN-SUFFIX">DOMAIN-SUFFIX</option>
-                    <option value="DOMAIN">DOMAIN</option>
-                    <option value="DOMAIN-KEYWORD">DOMAIN-KEYWORD</option>
-                    <option value="IP-CIDR">IP-CIDR</option>
-                    <option value="IP-CIDR6">IP-CIDR6</option>
-                </select>
+            <div class="rule-header">
+                <div class="search-container">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <input type="text" id="ruleSearch" placeholder="搜索规则（域名/IP）..." class="rule-search-input">
+                </div>
+                <div class="filter-container">
+                    <svg class="filter-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M4 6h16v2H4zm2 5h12v2H6zm4 5h4v2h-4z"></path>
+                    </svg>
+                    <select id="ruleTypeFilter" onchange="filterRules()" class="rule-type-select">
+                        <option value="">全部类型</option>
+                        <option value="DOMAIN-SUFFIX">🌐 DOMAIN-SUFFIX</option>
+                        <option value="DOMAIN">📌 DOMAIN</option>
+                        <option value="DOMAIN-KEYWORD">🔍 DOMAIN-KEYWORD</option>
+                        <option value="IP-CIDR">🔢 IP-CIDR</option>
+                        <option value="IP-CIDR6">🔢 IP-CIDR6</option>
+                    </select>
+                </div>
+                <button onclick="showAddRuleModal()" class="btn btn-primary btn-add-rule">
+                    <svg viewBox="0 0 24 24" fill="currentColor" style="width: 16px; height: 16px; margin-right: 6px;">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+                    </svg>
+                    添加规则
+                </button>
             </div>
             <div class="rule-stats">
-                显示 <span id="showingCount">0</span> / <span id="totalCount">0</span> 条规则
+                <span class="stats-item">
+                    <span class="stats-label">总计:</span>
+                    <span class="stats-value" id="totalCount">0</span>
+                </span>
+                <span class="stats-item">
+                    <span class="stats-label">显示:</span>
+                    <span class="stats-value" id="showingCount">0</span>
+                </span>
             </div>
-            <button onclick="showAddRuleModal()" class="btn btn-primary">添加规则</button>
             <div id="rulesList" class="list-container"></div>
             <div id="rulePagination" class="pagination"></div>
         </div>
