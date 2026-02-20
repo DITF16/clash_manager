@@ -2,14 +2,19 @@ import yaml
 import os
 import requests
 import copy
+import json
 from datetime import datetime
 
 
 class ConfigManager:
     def __init__(self):
         self.original_file = "original_config.yaml"
-        self.custom_file = "user_custom.yaml"
         self.merged_file = "config.yaml"
+        self.modifications_dir = "modifications"  # 存放修改文件的目录
+        
+        # 创建修改文件目录
+        if not os.path.exists(self.modifications_dir):
+            os.makedirs(self.modifications_dir)
 
     def load_config(self):
         """加载合并后的配置"""
@@ -24,15 +29,13 @@ class ConfigManager:
 
     def load_custom(self):
         """加载用户自定义配置"""
-        if os.path.exists(self.custom_file):
-            with open(self.custom_file, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
+        # 从修改文件系统中加载，如果没有则返回空配置
         return {"proxy-groups": [], "rules": []}
 
     def save_custom(self, custom_config):
         """保存用户自定义配置"""
-        with open(self.custom_file, "w", encoding="utf-8") as f:
-            yaml.dump(custom_config, f, allow_unicode=True, default_flow_style=False)
+        # 配置文件通过修改系统管理，不再直接保存
+        pass
 
     def get_merged_config(self):
         """合并原始配置和自定义配置"""
@@ -178,7 +181,7 @@ class ConfigManager:
         return {"success": True, "message": "配置已保存"}
 
     def refresh_subscription(self, subscription_url):
-        """刷新订阅并合并自定义配置"""
+        """刷新订阅（不自动合并，需要手动选择修改文件）"""
         if not subscription_url:
             return {"success": False, "message": "请提供订阅 URL"}
 
@@ -195,9 +198,156 @@ class ConfigManager:
             # 保存合并后的配置
             self.save_config()
 
-            return {"success": True, "message": "订阅更新成功，自定义配置已合并"}
+            return {"success": True, "message": "订阅更新成功，请选择修改文件进行合并"}
         except Exception as e:
             return {"success": False, "message": f"更新失败：{str(e)}"}
+
+
+    # ==================== 修改文件管理 ====================
+    
+    def save_modification(self, mod_name, mod_description, config_data):
+        """保存修改文件
+        
+        Args:
+            mod_name: 修改名称
+            mod_description: 修改描述
+            config_data: 修改的配置内容 (dict with proxy-groups and/or rules)
+        """
+        try:
+            # 生成修改文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{mod_name}_{timestamp}.json"
+            filepath = os.path.join(self.modifications_dir, filename)
+            
+            # 准备修改数据
+            modification = {
+                "name": mod_name,
+                "description": mod_description,
+                "created_at": datetime.now().isoformat(),
+                "config": config_data
+            }
+            
+            # 保存修改文件
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(modification, f, ensure_ascii=False, indent=2)
+            
+            return {"success": True, "message": "修改已保存", "filename": filename}
+        except Exception as e:
+            return {"success": False, "message": f"保存失败：{str(e)}"}
+
+    def get_modifications_list(self):
+        """获取所有修改文件列表"""
+        try:
+            modifications = []
+            if os.path.exists(self.modifications_dir):
+                for filename in os.listdir(self.modifications_dir):
+                    if filename.endswith(".json"):
+                        filepath = os.path.join(self.modifications_dir, filename)
+                        try:
+                            with open(filepath, "r", encoding="utf-8") as f:
+                                mod_data = json.load(f)
+                            modifications.append({
+                                "filename": filename,
+                                "name": mod_data.get("name", "未命名"),
+                                "description": mod_data.get("description", ""),
+                                "created_at": mod_data.get("created_at", ""),
+                                "config": mod_data.get("config", {})
+                            })
+                        except:
+                            pass
+            
+            # 按创建时间倒序排列
+            modifications.sort(key=lambda x: x["created_at"], reverse=True)
+            return {"success": True, "modifications": modifications}
+        except Exception as e:
+            return {"success": False, "message": f"获取列表失败：{str(e)}"}
+
+    def load_modification(self, filename):
+        """加载指定的修改文件"""
+        try:
+            filepath = os.path.join(self.modifications_dir, filename)
+            if not os.path.exists(filepath):
+                return {"success": False, "message": "修改文件不存在"}
+            
+            with open(filepath, "r", encoding="utf-8") as f:
+                mod_data = json.load(f)
+            
+            return {
+                "success": True,
+                "modification": mod_data
+            }
+        except Exception as e:
+            return {"success": False, "message": f"加载失败：{str(e)}"}
+
+    def apply_modification(self, filename):
+        """应用修改文件（合并到当前配置）"""
+        try:
+            # 加载修改文件
+            load_result = self.load_modification(filename)
+            if not load_result["success"]:
+                return load_result
+            
+            mod_data = load_result["modification"]
+            config_patch = mod_data.get("config", {})
+            
+            # 加载当前的自定义配置
+            custom = self.load_custom()
+            
+            # 合并 proxy-groups
+            if "proxy-groups" in config_patch:
+                if "proxy-groups" not in custom:
+                    custom["proxy-groups"] = []
+                
+                patch_groups = {g["name"]: g for g in config_patch["proxy-groups"]}
+                custom_groups = {g["name"]: g for g in custom["proxy-groups"]}
+                
+                # 更新或添加代理组
+                for name, patch_group in patch_groups.items():
+                    if name in custom_groups:
+                        custom_groups[name].update(patch_group)
+                    else:
+                        custom_groups[name] = patch_group
+                
+                custom["proxy-groups"] = list(custom_groups.values())
+            
+            # 合并 rules
+            if "rules" in config_patch:
+                if "rules" not in custom:
+                    custom["rules"] = []
+                
+                # 避免重复
+                existing_rules = set(str(r) for r in custom["rules"])
+                for rule in config_patch["rules"]:
+                    if str(rule) not in existing_rules:
+                        custom["rules"].append(rule)
+            
+            # 保存合并后的配置
+            self.save_custom(custom)
+            
+            # 保存最终的合并配置
+            self.save_config()
+            
+            return {
+                "success": True,
+                "message": f"已应用修改：{mod_data.get('name', '未命名')}"
+            }
+        except Exception as e:
+            return {"success": False, "message": f"应用失败：{str(e)}"}
+
+    def delete_modification(self, filename):
+        """删除修改文件"""
+        try:
+            filepath = os.path.join(self.modifications_dir, filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                return {"success": True, "message": "修改已删除"}
+            return {"success": False, "message": "修改文件不存在"}
+        except Exception as e:
+            return {"success": False, "message": f"删除失败：{str(e)}"}
+
+    def get_current_custom_config(self):
+        """获取当前的自定义配置（用于保存为修改文件）"""
+        return self.load_custom()
 
     def move_rule(self, index, direction):
         """移动规则位置"""

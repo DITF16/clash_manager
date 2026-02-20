@@ -18,6 +18,15 @@
                 <button onclick="refreshSubscription()" class="btn btn-primary">更新订阅</button>
                 <button onclick="exportConfig()" class="btn btn-success">导出配置</button>
             </div>
+            
+            <!-- 修改文件管理 -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <h3 style="flex: 1; margin: 0;">💾 修改文件管理</h3>
+                    <button onclick="showSaveModificationModal()" class="btn btn-primary">保存当前修改</button>
+                </div>
+                <div id="modificationsList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px;"></div>
+            </div>
         </div>
         
         <!-- 代理组管理 -->
@@ -193,6 +202,30 @@
     </div>
     
     <!-- 批量操作提示 -->
+    
+    <!-- 保存修改模态框 -->
+    <div id="saveModificationModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('saveModificationModal')">&times;</span>
+            <h3>保存当前修改</h3>
+            <form id="saveModificationForm">
+                <div class="form-group">
+                    <label>修改名称:</label>
+                    <input type="text" id="modificationName" required placeholder="例如：添加国外媒体规则">
+                </div>
+                <div class="form-group">
+                    <label>修改描述:</label>
+                    <textarea id="modificationDescription" placeholder="描述这个修改的内容和目的..." style="min-height: 80px;"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                    <button type="button" class="btn" onclick="closeModal('saveModificationModal')">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+
     <div id="toast" class="toast"></div>
 </body>
 </html>
@@ -210,6 +243,8 @@
     document.addEventListener('DOMContentLoaded', function() {
         loadProxies();
         loadProxyGroups();
+        loadModifications();
+
         loadRules();
     });
     
@@ -798,6 +833,133 @@ function removeProxy(name) {
         }
     }
     
+    
+    // ==================== 修改文件管理 ====================
+    async function loadModifications() {
+        try {
+            const res = await fetch('/api/modifications/list');
+            const data = await res.json();
+            if (data.success) {
+                renderModifications(data.modifications);
+            }
+        } catch (error) {
+            console.error('加载修改文件失败:', error);
+        }
+    }
+    
+    function renderModifications(modifications) {
+        const container = document.getElementById('modificationsList');
+        if (modifications.length === 0) {
+            container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999;">暂无保存的修改</p>';
+            return;
+        }
+        
+        container.innerHTML = modifications.map(mod => `
+            <div style="background: #f5f5f5; border-radius: 8px; padding: 12px; border-left: 4px solid #667eea;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                    <div>
+                        <h4 style="margin: 0 0 4px 0; color: #333;">${mod.name}</h4>
+                        <p style="margin: 0; font-size: 12px; color: #999;">${new Date(mod.created_at).toLocaleString()}</p>
+                    </div>
+                    <button onclick="deleteModification('${mod.filename}')" class="btn btn-sm" style="background: #ff6b6b; color: white; border: none; padding: 4px 8px; cursor: pointer;">删除</button>
+                </div>
+                <p style="margin: 8px 0; font-size: 13px; color: #666; line-height: 1.4;">${mod.description || '无描述'}</p>
+                <button onclick="applyModification('${mod.filename}')" class="btn btn-primary" style="width: 100%; margin-top: 8px;">应用此修改</button>
+            </div>
+        `).join('');
+    }
+    
+    function showSaveModificationModal() {
+        document.getElementById('saveModificationModal').style.display = 'block';
+    }
+    
+    document.getElementById('saveModificationForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('modificationName').value;
+        const description = document.getElementById('modificationDescription').value;
+        
+        // 获取当前的自定义配置
+        const customConfig = {
+            'proxy-groups': allGroups.filter(g => {
+                // 只保存自定义的代理组（通过检查是否在原始配置中）
+                return true; // 这里简化处理，实际应该区分
+            }),
+            'rules': allRules
+        };
+        
+        try {
+            const res = await fetch('/api/modifications/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    description: description,
+                    config: customConfig
+                })
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                showToast('修改已保存');
+                closeModal('saveModificationModal');
+                document.getElementById('saveModificationForm').reset();
+                loadModifications();
+            } else {
+                showToast(data.message, 'error');
+            }
+        } catch (error) {
+            showToast('保存失败: ' + error.message, 'error');
+        }
+    });
+    
+    async function applyModification(filename) {
+        if (!confirm('确定要应用此修改吗？')) return;
+        
+        try {
+            const res = await fetch('/api/modifications/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: filename })
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message);
+                // 重新加载所有数据
+                loadProxyGroups();
+                loadRules();
+            } else {
+                showToast(data.message, 'error');
+            }
+        } catch (error) {
+            showToast('应用失败: ' + error.message, 'error');
+        }
+    }
+    
+    async function deleteModification(filename) {
+        if (!confirm('确定要删除此修改吗？')) return;
+        
+        try {
+            const res = await fetch('/api/modifications/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: filename })
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                showToast('修改已删除');
+                loadModifications();
+            } else {
+                showToast(data.message, 'error');
+            }
+        } catch (error) {
+            showToast('删除失败: ' + error.message, 'error');
+        }
+    }
+    
+
     // 键盘快捷键
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {

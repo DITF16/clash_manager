@@ -109,6 +109,44 @@ def export_config():
     config = config_manager.get_merged_config()
     return jsonify({"config": yaml.dump(config, allow_unicode=True)})
 
+
+@app.route('/api/modifications/save', methods=['POST'])
+def save_modification():
+    """保存当前修改为修改文件"""
+    data = request.json
+    mod_name = data.get('name')
+    mod_description = data.get('description', '')
+    config_data = data.get('config', {})
+    
+    result = config_manager.save_modification(mod_name, mod_description, config_data)
+    return jsonify(result)
+
+
+@app.route('/api/modifications/list', methods=['GET'])
+def get_modifications_list():
+    """获取所有修改文件列表"""
+    result = config_manager.get_modifications_list()
+    return jsonify(result)
+
+
+@app.route('/api/modifications/apply', methods=['POST'])
+def apply_modification():
+    """应用修改文件"""
+    data = request.json
+    filename = data.get('filename')
+    result = config_manager.apply_modification(filename)
+    return jsonify(result)
+
+
+@app.route('/api/modifications/delete', methods=['POST'])
+def delete_modification():
+    """删除修改文件"""
+    data = request.json
+    filename = data.get('filename')
+    result = config_manager.delete_modification(filename)
+    return jsonify(result)
+
+
 @app.route('/api/rules/move', methods=['POST'])
 def move_rule():
     """移动规则位置"""
