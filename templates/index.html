@@ -847,7 +847,7 @@ function removeProxy(name) {
         }
     }
     
-    function renderModifications(modifications) {
+function renderModifications(modifications) {
         const container = document.getElementById('modificationsList');
         if (modifications.length === 0) {
             container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999;">暂无保存的修改</p>';
@@ -864,11 +864,16 @@ function removeProxy(name) {
                     <button onclick="deleteModification('${mod.filename}')" class="btn btn-sm" style="background: #ff6b6b; color: white; border: none; padding: 4px 8px; cursor: pointer;">删除</button>
                 </div>
                 <p style="margin: 8px 0; font-size: 13px; color: #666; line-height: 1.4;">${mod.description || '无描述'}</p>
+                <p style="margin: 8px 0; font-size: 12px; background: #e8e8ff; padding: 6px 8px; border-radius: 4px; color: #555;">
+                    📝 ${mod.changes_summary || '无变化'}
+                </p>
                 <button onclick="applyModification('${mod.filename}')" class="btn btn-primary" style="width: 100%; margin-top: 8px;">应用此修改</button>
             </div>
         `).join('');
     }
-    
+
+
+
     function showSaveModificationModal() {
         document.getElementById('saveModificationModal').style.display = 'block';
     }
@@ -879,23 +884,13 @@ function removeProxy(name) {
         const name = document.getElementById('modificationName').value;
         const description = document.getElementById('modificationDescription').value;
         
-        // 获取当前的自定义配置
-        const customConfig = {
-            'proxy-groups': allGroups.filter(g => {
-                // 只保存自定义的代理组（通过检查是否在原始配置中）
-                return true; // 这里简化处理，实际应该区分
-            }),
-            'rules': allRules
-        };
-        
         try {
             const res = await fetch('/api/modifications/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: name,
-                    description: description,
-                    config: customConfig
+                    description: description
                 })
             });
             
@@ -912,6 +907,7 @@ function removeProxy(name) {
             showToast('保存失败: ' + error.message, 'error');
         }
     });
+
     
     async function applyModification(filename) {
         if (!confirm('确定要应用此修改吗？')) return;

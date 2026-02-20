@@ -205,26 +205,128 @@ class ConfigManager:
 
     # ==================== 修改文件管理 ====================
     
-    def save_modification(self, mod_name, mod_description, config_data):
-        """保存修改文件
+def save_modification(self, mod_name, mod_description):
+        """保存修改文件（只保存增量修改）
+        
+        记录：
+        - 新增的代理组
+        - 修改的代理组
+        - 删除的代理组
+        - 新增的规则
+        - 修改的规则
+        - 删除的规则
         
         Args:
             mod_name: 修改名称
             mod_description: 修改描述
-            config_data: 修改的配置内容 (dict with proxy-groups and/or rules)
         """
         try:
+            # 获取当前的自定义配置
+            current_custom = self.load_custom()
+            
+            # 加载原始订阅配置（用于对比）
+            original_config = self.load_original()
+            
             # 生成修改文件名
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{mod_name}_{timestamp}.json"
             filepath = os.path.join(self.modifications_dir, filename)
+            
+            # 分析代理组的变化
+            original_groups = {g["name"]: g for g in original_config.get("proxy-groups", [])}
+            current_groups = {g["name"]: g for g in current_custom.get("proxy-groups", [])}
+            
+            added_groups = []
+            modified_groups = []
+            deleted_group_names = []
+            
+            # 找出新增和修改的代理组
+            for name, group in current_groups.items():
+                if name not in original_groups:
+                    # 新增的代理组
+                    added_groups.append(group)
+                elif original_groups[name] != group:
+                    # 修改的代理组 - 详细记录节点变化
+                    old_group = original_groups[name]
+                    new_group = group
+                    
+                    # 获取代理节点（proxies 字段）
+                    old_proxies = set(old_group.get("proxies", []))
+                    new_proxies = set(new_group.get("proxies", []))
+                    
+                    # 计算节点的添加、删除
+                    added_proxies = list(new_proxies - old_proxies)
+                    deleted_proxies = list(old_proxies - new_proxies)
+                    
+                    # 检查其他字段的改变
+                    fields_changed = {}
+                    for key in old_group:
+                        if key != "proxies" and old_group.get(key) != new_group.get(key):
+                            fields_changed[key] = {
+                                "old": old_group.get(key),
+                                "new": new_group.get(key)
+                            }
+                    
+                    modified_groups.append({
+                        "name": name,
+                        "added_proxies": added_proxies,
+                        "deleted_proxies": deleted_proxies,
+                        "fields_changed": fields_changed,
+                        "old": old_group,
+                        "new": new_group
+                    })
+            for name in original_groups:
+                if name not in current_groups:
+                    deleted_group_names.append(name)
+            
+            # 分析规则的变化
+            original_rules = original_config.get("rules", [])
+            current_rules = current_custom.get("rules", [])
+            
+            added_rules = []
+            modified_rules = []
+            deleted_rules = []
+            
+            # 创建规则映射（用于对比）
+            original_rules_set = set(str(r) for r in original_rules)
+            current_rules_set = set(str(r) for r in current_rules)
+            
+            # 找出新增的规则
+            for i, rule in enumerate(current_rules):
+                rule_str = str(rule)
+                if rule_str not in original_rules_set:
+                    added_rules.append(rule)
+            
+            # 找出删除的规则
+            for rule in original_rules:
+                rule_str = str(rule)
+                if rule_str not in current_rules_set:
+                    deleted_rules.append(rule)
+            
+            # 检测规则的顺序是否改变（视为修改）
+            if original_rules != current_rules and added_rules == [] and deleted_rules == []:
+                # 只有顺序改变，记录为修改
+                modified_rules.append({
+                    "type": "reorder",
+                    "old_rules": original_rules,
+                    "new_rules": current_rules
+                })
             
             # 准备修改数据
             modification = {
                 "name": mod_name,
                 "description": mod_description,
                 "created_at": datetime.now().isoformat(),
-                "config": config_data
+                "proxy_groups": {
+                    "added": added_groups,
+                    "modified": modified_groups,
+                    "deleted": deleted_group_names
+                },
+                "rules": {
+                    "added": added_rules,
+                    "modified": modified_rules,
+                    "deleted": deleted_rules
+                }
             }
             
             # 保存修改文件
@@ -235,7 +337,9 @@ class ConfigManager:
         except Exception as e:
             return {"success": False, "message": f"保存失败：{str(e)}"}
 
-    def get_modifications_list(self):
+
+
+def get_modifications_list(self):
         """获取所有修改文件列表"""
         try:
             modifications = []
@@ -246,12 +350,31 @@ class ConfigManager:
                         try:
                             with open(filepath, "r", encoding="utf-8") as f:
                                 mod_data = json.load(f)
+                            
+                            # 统计变化
+                            pg = mod_data.get("proxy_groups", {})
+                            rules = mod_data.get("rules", {})
+                            
+                            changes_summary = []
+                            if pg.get("added"):
+                                changes_summary.append(f"新增代理组{len(pg['added'])}")
+                            if pg.get("modified"):
+                                changes_summary.append(f"修改代理组{len(pg['modified'])}")
+                            if pg.get("deleted"):
+                                changes_summary.append(f"删除代理组{len(pg['deleted'])}")
+                            if rules.get("added"):
+                                changes_summary.append(f"新增规则{len(rules['added'])}")
+                            if rules.get("modified"):
+                                changes_summary.append(f"修改规则{len(rules['modified'])}")
+                            if rules.get("deleted"):
+                                changes_summary.append(f"删除规则{len(rules['deleted'])}")
+                            
                             modifications.append({
                                 "filename": filename,
                                 "name": mod_data.get("name", "未命名"),
                                 "description": mod_data.get("description", ""),
                                 "created_at": mod_data.get("created_at", ""),
-                                "config": mod_data.get("config", {})
+                                "changes_summary": ", ".join(changes_summary)
                             })
                         except:
                             pass
@@ -261,26 +384,29 @@ class ConfigManager:
             return {"success": True, "modifications": modifications}
         except Exception as e:
             return {"success": False, "message": f"获取列表失败：{str(e)}"}
+    
+def load_modification(self, filename):
+    """加载修改文件"""
+    try:
+        filepath = os.path.join(self.modifications_dir, filename)
+        with open(filepath, "r", encoding="utf-8") as f:
+            mod_data = json.load(f)
+        return {
+            "success": True,
+            "modification": mod_data
+        }
+    except Exception as e:
+        return {"success": False, "message": f"加载失败：{str(e)}"}
 
-    def load_modification(self, filename):
-        """加载指定的修改文件"""
-        try:
-            filepath = os.path.join(self.modifications_dir, filename)
-            if not os.path.exists(filepath):
-                return {"success": False, "message": "修改文件不存在"}
-            
-            with open(filepath, "r", encoding="utf-8") as f:
-                mod_data = json.load(f)
-            
-            return {
-                "success": True,
-                "modification": mod_data
-            }
-        except Exception as e:
-            return {"success": False, "message": f"加载失败：{str(e)}"}
 
-    def apply_modification(self, filename):
-        """应用修改文件（合并到当前配置）"""
+def apply_modification(self, filename):
+        """应用修改文件（合并到当前配置）
+        
+        根据修改文件中记录的增量变化，将其应用到当前配置：
+        1. 添加新的代理组/规则
+        2. 更新修改的代理组/规则
+        3. 删除指定的代理组/规则
+        """
         try:
             # 加载修改文件
             load_result = self.load_modification(filename)
@@ -288,38 +414,93 @@ class ConfigManager:
                 return load_result
             
             mod_data = load_result["modification"]
-            config_patch = mod_data.get("config", {})
             
             # 加载当前的自定义配置
             custom = self.load_custom()
             
-            # 合并 proxy-groups
-            if "proxy-groups" in config_patch:
-                if "proxy-groups" not in custom:
-                    custom["proxy-groups"] = []
-                
-                patch_groups = {g["name"]: g for g in config_patch["proxy-groups"]}
-                custom_groups = {g["name"]: g for g in custom["proxy-groups"]}
-                
-                # 更新或添加代理组
-                for name, patch_group in patch_groups.items():
-                    if name in custom_groups:
-                        custom_groups[name].update(patch_group)
-                    else:
-                        custom_groups[name] = patch_group
-                
-                custom["proxy-groups"] = list(custom_groups.values())
+            if "proxy_groups" not in custom:
+                custom["proxy-groups"] = []
+            if "rules" not in custom:
+                custom["rules"] = []
             
-            # 合并 rules
-            if "rules" in config_patch:
-                if "rules" not in custom:
-                    custom["rules"] = []
-                
-                # 避免重复
+            # ========== 处理代理组变化 ==========
+            pg_changes = mod_data.get("proxy_groups", {})
+            
+            # 1. 添加新的代理组
+            if pg_changes.get("added"):
+                custom_group_names = {g["name"] for g in custom["proxy-groups"]}
+                for added_group in pg_changes["added"]:
+                    if added_group["name"] not in custom_group_names:
+                        custom["proxy-groups"].append(added_group)
+            
+            # 2. 更新修改的代理组（智能应用节点级别的变化）
+            if pg_changes.get("modified"):
+                 custom_groups = {g["name"]: i for i, g in enumerate(custom["proxy-groups"])}
+                 for mod_group in pg_changes["modified"]:
+                     group_name = mod_group["name"]
+                     
+                     if group_name in custom_groups:
+                         group_idx = custom_groups[group_name]
+                         current_group = custom["proxy-groups"][group_idx]
+                         
+                         # 智能应用节点级别的变化
+                         if mod_group.get("added_proxies") or mod_group.get("deleted_proxies"):
+                             # 如果有节点级别的变化，进行精确的节点操作
+                             current_proxies = set(current_group.get("proxies", []))
+                             
+                             # 添加新节点
+                             if mod_group.get("added_proxies"):
+                                 for proxy in mod_group["added_proxies"]:
+                                     current_proxies.add(proxy)
+                             
+                             # 删除指定的节点
+                             if mod_group.get("deleted_proxies"):
+                                 current_proxies.difference_update(mod_group["deleted_proxies"])
+                             
+                             current_group["proxies"] = list(current_proxies)
+                         
+                         # 应用其他字段的改变
+                         if mod_group.get("fields_changed"):
+                             for field, change in mod_group["fields_changed"].items():
+                                 current_group[field] = change["new"]
+                         
+                         custom["proxy-groups"][group_idx] = current_group
+                     else:
+                         # 如果代理组不存在，则添加新的
+                         custom["proxy-groups"].append(mod_group["new"])
+            
+            # 3. 删除指定的代理组
+            if pg_changes.get("deleted"):
+                deleted_names = set(pg_changes["deleted"])
+                custom["proxy-groups"] = [
+                    g for g in custom["proxy-groups"] 
+                    if g["name"] not in deleted_names
+                ]
+            
+            # ========== 处理规则变化 ==========
+            rules_changes = mod_data.get("rules", {})
+            
+            # 1. 添加新的规则
+            if rules_changes.get("added"):
                 existing_rules = set(str(r) for r in custom["rules"])
-                for rule in config_patch["rules"]:
-                    if str(rule) not in existing_rules:
-                        custom["rules"].append(rule)
+                for added_rule in rules_changes["added"]:
+                    if str(added_rule) not in existing_rules:
+                        custom["rules"].append(added_rule)
+            
+            # 2. 处理修改的规则（主要是顺序改变）
+            if rules_changes.get("modified"):
+                for mod_rule in rules_changes["modified"]:
+                    if mod_rule.get("type") == "reorder":
+                        # 恢复为修改文件中的规则顺序
+                        custom["rules"] = mod_rule["new_rules"]
+            
+            # 3. 删除指定的规则
+            if rules_changes.get("deleted"):
+                deleted_rules_set = set(str(r) for r in rules_changes["deleted"])
+                custom["rules"] = [
+                    r for r in custom["rules"]
+                    if str(r) not in deleted_rules_set
+                ]
             
             # 保存合并后的配置
             self.save_custom(custom)
@@ -327,40 +508,57 @@ class ConfigManager:
             # 保存最终的合并配置
             self.save_config()
             
+            # 统计应用的变化
+            changes_count = []
+            if pg_changes.get("added"):
+                changes_count.append(f"新增{len(pg_changes['added'])}个代理组")
+            if pg_changes.get("modified"):
+                changes_count.append(f"修改{len(pg_changes['modified'])}个代理组")
+            if pg_changes.get("deleted"):
+                changes_count.append(f"删除{len(pg_changes['deleted'])}个代理组")
+            if rules_changes.get("added"):
+                changes_count.append(f"新增{len(rules_changes['added'])}条规则")
+            if rules_changes.get("modified"):
+                changes_count.append(f"修改规则顺序")
+            if rules_changes.get("deleted"):
+                changes_count.append(f"删除{len(rules_changes['deleted'])}条规则")
+            
+            change_detail = "，".join(changes_count) if changes_count else "无变化"
+            
             return {
                 "success": True,
-                "message": f"已应用修改：{mod_data.get('name', '未命名')}"
+                "message": f"已应用修改：{mod_data.get('name', '未命名')}（{change_detail}）"
             }
         except Exception as e:
             return {"success": False, "message": f"应用失败：{str(e)}"}
 
-    def delete_modification(self, filename):
-        """删除修改文件"""
-        try:
-            filepath = os.path.join(self.modifications_dir, filename)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                return {"success": True, "message": "修改已删除"}
-            return {"success": False, "message": "修改文件不存在"}
-        except Exception as e:
-            return {"success": False, "message": f"删除失败：{str(e)}"}
+def delete_modification(self, filename):
+    """删除修改文件"""
+    try:
+        filepath = os.path.join(self.modifications_dir, filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            return {"success": True, "message": "修改已删除"}
+        return {"success": False, "message": "修改文件不存在"}
+    except Exception as e:
+        return {"success": False, "message": f"删除失败：{str(e)}"}
 
-    def get_current_custom_config(self):
-        """获取当前的自定义配置（用于保存为修改文件）"""
-        return self.load_custom()
+def get_current_custom_config(self):
+    """获取当前的自定义配置（用于保存为修改文件）"""
+    return self.load_custom()
 
-    def move_rule(self, index, direction):
-        """移动规则位置"""
-        custom = self.load_custom()
-        rules = custom.get('rules', [])
-        
-        if direction == 'up' and index > 0:
-            rules[index], rules[index - 1] = rules[index - 1], rules[index]
-        elif direction == 'down' and index < len(rules) - 1:
-            rules[index], rules[index + 1] = rules[index + 1], rules[index]
-        else:
-            return {'success': False, 'message': '无法移动'}
-        
-        custom['rules'] = rules
-        self.save_custom(custom)
-        return {'success': True, 'message': '移动成功'}
+def move_rule(self, index, direction):
+    """移动规则位置"""
+    custom = self.load_custom()
+    rules = custom.get('rules', [])
+    
+    if direction == 'up' and index > 0:
+        rules[index], rules[index - 1] = rules[index - 1], rules[index]
+    elif direction == 'down' and index < len(rules) - 1:
+        rules[index], rules[index + 1] = rules[index + 1], rules[index]
+    else:
+        return {'success': False, 'message': '无法移动'}
+    
+    custom['rules'] = rules
+    self.save_custom(custom)
+    return {'success': True, 'message': '移动成功'}

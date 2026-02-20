@@ -116,10 +116,11 @@ def save_modification():
     data = request.json
     mod_name = data.get('name')
     mod_description = data.get('description', '')
-    config_data = data.get('config', {})
     
-    result = config_manager.save_modification(mod_name, mod_description, config_data)
+    result = config_manager.save_modification(mod_name, mod_description)
     return jsonify(result)
+
+
 
 
 @app.route('/api/modifications/list', methods=['GET'])
