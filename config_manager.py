@@ -205,7 +205,7 @@ class ConfigManager:
 
     # ==================== 修改文件管理 ====================
     
-def save_modification(self, mod_name, mod_description):
+    def save_modification(self, mod_name, mod_description):
         """保存修改文件（只保存增量修改）
         
         记录：
@@ -339,7 +339,7 @@ def save_modification(self, mod_name, mod_description):
 
 
 
-def get_modifications_list(self):
+    def get_modifications_list(self):
         """获取所有修改文件列表"""
         try:
             modifications = []
@@ -385,21 +385,21 @@ def get_modifications_list(self):
         except Exception as e:
             return {"success": False, "message": f"获取列表失败：{str(e)}"}
     
-def load_modification(self, filename):
-    """加载修改文件"""
-    try:
-        filepath = os.path.join(self.modifications_dir, filename)
-        with open(filepath, "r", encoding="utf-8") as f:
-            mod_data = json.load(f)
-        return {
-            "success": True,
-            "modification": mod_data
-        }
-    except Exception as e:
-        return {"success": False, "message": f"加载失败：{str(e)}"}
+    def load_modification(self, filename):
+        """加载修改文件"""
+        try:
+            filepath = os.path.join(self.modifications_dir, filename)
+            with open(filepath, "r", encoding="utf-8") as f:
+                mod_data = json.load(f)
+            return {
+                "success": True,
+                "modification": mod_data
+            }
+        except Exception as e:
+            return {"success": False, "message": f"加载失败：{str(e)}"}
 
 
-def apply_modification(self, filename):
+    def apply_modification(self, filename):
         """应用修改文件（合并到当前配置）
         
         根据修改文件中记录的增量变化，将其应用到当前配置：
@@ -532,33 +532,33 @@ def apply_modification(self, filename):
         except Exception as e:
             return {"success": False, "message": f"应用失败：{str(e)}"}
 
-def delete_modification(self, filename):
-    """删除修改文件"""
-    try:
-        filepath = os.path.join(self.modifications_dir, filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
-            return {"success": True, "message": "修改已删除"}
-        return {"success": False, "message": "修改文件不存在"}
-    except Exception as e:
-        return {"success": False, "message": f"删除失败：{str(e)}"}
+    def delete_modification(self, filename):
+        """删除修改文件"""
+        try:
+            filepath = os.path.join(self.modifications_dir, filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                return {"success": True, "message": "修改已删除"}
+            return {"success": False, "message": "修改文件不存在"}
+        except Exception as e:
+            return {"success": False, "message": f"删除失败：{str(e)}"}
 
-def get_current_custom_config(self):
-    """获取当前的自定义配置（用于保存为修改文件）"""
-    return self.load_custom()
+    def get_current_custom_config(self):
+        """获取当前的自定义配置（用于保存为修改文件）"""
+        return self.load_custom()
 
-def move_rule(self, index, direction):
-    """移动规则位置"""
-    custom = self.load_custom()
-    rules = custom.get('rules', [])
-    
-    if direction == 'up' and index > 0:
-        rules[index], rules[index - 1] = rules[index - 1], rules[index]
-    elif direction == 'down' and index < len(rules) - 1:
-        rules[index], rules[index + 1] = rules[index + 1], rules[index]
-    else:
-        return {'success': False, 'message': '无法移动'}
-    
-    custom['rules'] = rules
-    self.save_custom(custom)
-    return {'success': True, 'message': '移动成功'}
+    def move_rule(self, index, direction):
+        """移动规则位置"""
+        custom = self.load_custom()
+        rules = custom.get('rules', [])
+        
+        if direction == 'up' and index > 0:
+            rules[index], rules[index - 1] = rules[index - 1], rules[index]
+        elif direction == 'down' and index < len(rules) - 1:
+            rules[index], rules[index + 1] = rules[index + 1], rules[index]
+        else:
+            return {'success': False, 'message': '无法移动'}
+        
+        custom['rules'] = rules
+        self.save_custom(custom)
+        return {'success': True, 'message': '移动成功'}
