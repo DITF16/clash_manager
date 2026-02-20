@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clash 配置管理器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Clash 配置管理器</h1>
+        
+        <!-- 订阅更新区域 -->
+        <div class="card">
+            <h2>📡 订阅管理</h2>
+            <div class="form-group">
+                <input type="text" id="subscriptionUrl" placeholder="输入订阅 URL">
+                <button onclick="refreshSubscription()" class="btn btn-primary">更新订阅</button>
+                <button onclick="exportConfig()" class="btn btn-success">导出配置</button>
+            </div>
+        </div>
+        
+        <!-- 代理组管理 -->
+        <div class="card">
+            <h2>📦 代理组管理</h2>
+            <button onclick="showAddGroupModal()" class="btn btn-primary">添加代理组</button>
+            <div id="proxyGroupsList" class="list-container"></div>
+        </div>
+        
+        <!-- 规则管理 -->
+        <div class="card">
+            <h2>📋 规则管理</h2>
+            <button onclick="showAddRuleModal()" class="btn btn-primary">添加规则</button>
+            <div id="rulesList" class="list-container"></div>
+        </div>
+    </div>
+    
+    <!-- 代理组模态框 -->
+    <div id="groupModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('groupModal')">&times;</span>
+            <h3 id="groupModalTitle">添加代理组</h3>
+            <form id="groupForm">
+                <input type="hidden" id="groupOldName">
+                <div class="form-group">
+                    <label>名称:</label>
+                    <input type="text" id="groupName" required>
+                </div>
+                <div class="form-group">
+                    <label>类型:</label>
+                    <select id="groupType" onchange="toggleUrlTestOptions()">
+                        <option value="select">select</option>
+                        <option value="url-test">url-test</option>
+                    </select>
+                </div>
+                <div id="urlTestOptions" style="display:none;">
+                    <div class="form-group">
+                        <label>测试 URL:</label>
+                        <input type="text" id="groupUrl" value="http://www.gstatic.com/generate_204">
+                    </div>
+                    <div class="form-group">
+                        <label>间隔(秒):</label>
+                        <input type="number" id="groupInterval" value="300">
+                    </div>
+                    <div class="form-group">
+                        <label>容差(ms):</label>
+                        <input type="number" id="groupTolerance" value="50">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>代理节点:</label>
+                    <select id="groupProxies" multiple size="10"></select>
+                </div>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 规则模态框 -->
+    <div id="ruleModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('ruleModal')">&times;</span>
+            <h3 id="ruleModalTitle">添加规则</h3>
+            <form id="ruleForm">
+                <input type="hidden" id="ruleIndex">
+                <div class="form-group">
+                    <label>类型:</label>
+                    <select id="ruleType">
+                        <option value="DOMAIN-SUFFIX">DOMAIN-SUFFIX</option>
+                        <option value="DOMAIN">DOMAIN</option>
+                        <option value="DOMAIN-KEYWORD">DOMAIN-KEYWORD</option>
+                        <option value="IP-CIDR">IP-CIDR</option>
+                        <option value="IP-CIDR6">IP-CIDR6</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>值:</label>
+                    <input type="text" id="ruleValue" required placeholder="域名或IP段">
+                </div>
+                <div class="form-group">
+                    <label>代理组:</label>
+                    <select id="ruleProxy"></select>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="ruleNoResolve"> no-resolve
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let allProxies = [];
+        let allGroups = [];
+        let allRules = [];
+        
+        // 页面加载时获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProxies();
+            loadProxyGroups();
+            loadRules();
+        });
+        
+        async function loadProxies() {
+            const res = await fetch('/api/proxies');
+            const data = await res.json();
+            allProxies = data.proxies;
+            updateProxySelects();
+        }
+        
+        async function loadProxyGroups() {
+            const res = await fetch('/api/proxy-groups');
+            const data = await res.json();
+            allGroups = data['proxy-groups'];
+            renderProxyGroups();
+            updateProxySelects();
+        }
+        
+        async function loadRules() {
+            const res = await fetch('/api/rules');
+            const data = await res.json();
+            allRules = data.rules;
+            renderRules();
+        }
+        
+        function updateProxySelects() {
+            // 更新代理组中的代理选择
+            const groupProxies = document.getElementById('groupProxies');
+            groupProxies.innerHTML = allProxies.map(p => 
+                `<option value="${p}">${p}</option>`
+            ).join('');
+            
+            // 更新规则中的代理组选择
+            const ruleProxy = document.getElementById('ruleProxy');
+            ruleProxy.innerHTML = allGroups.map(g => 
+                `<option value="${g.name}">${g.name}</option>`
+            ).join('');
+        }
+        
+        function renderProxyGroups() {
+            const container = document.getElementById('proxyGroupsList');
+            container.innerHTML = allGroups.map((g, i) => `
+                <div class="list-item">
+                    <div class="item-info">
+                        <strong>${g.name}</strong>
+                        <span class="badge">${g.type}</span>
+                        <small>代理数: ${g.proxies?.length || 0}</small>
+                    </div>
+                    <div class="item-actions">
+                        <button onclick="editGroup(${i})" class="btn btn-sm">编辑</button>
+                        <button onclick="deleteGroup('${g.name}')" class="btn btn-sm btn-danger">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderRules() {
+            const container = document.getElementById('rulesList');
+            container.innerHTML = allRules.map((r, i) => {
+                const parts = r.split(',');
+                return `
+                    <div class="list-item">
+                        <div class="item-info">
+                            <span class="badge">${parts[0]}</span>
+                            <code>${parts[1]}</code>
+                            <span>→ ${parts[2]}</span>
+                            ${parts[3] ? '<span class="badge badge-info">no-resolve</span>' : ''}
+                        </div>
+                        <div class="item-actions">
+                            <button onclick="editRule(${i})" class="btn btn-sm">编辑</button>
+                            <button onclick="deleteRule(${i})" class="btn btn-sm btn-danger">删除</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function toggleUrlTestOptions() {
+            const type = document.getElementById('groupType').value;
+            document.getElementById('urlTestOptions').style.display = 
+                type === 'url-test' ? 'block' : 'none';
+        }
+        
+        function showAddGroupModal() {
+            document.getElementById('groupModalTitle').textContent = '添加代理组';
+            document.getElementById('groupForm').reset();
+            document.getElementById('groupOldName').value = '';
+            toggleUrlTestOptions();
+            document.getElementById('groupModal').style.display = 'block';
+        }
+        
+        function editGroup(index) {
+            const g = allGroups[index];
+            document.getElementById('groupModalTitle').textContent = '编辑代理组';
+            document.getElementById('groupOldName').value = g.name;
+            document.getElementById('groupName').value = g.name;
+            document.getElementById('groupType').value = g.type;
+            document.getElementById('groupUrl').value = g.url || '';
+            document.getElementById('groupInterval').value = g.interval || 300;
+            document.getElementById('groupTolerance').value = g.tolerance || 50;
+            
+            // 选择已配置的代理
+            const proxiesSelect = document.getElementById('groupProxies');
+            Array.from(proxiesSelect.options).forEach(opt => {
+                opt.selected = g.proxies?.includes(opt.value);
+            });
+            
+            toggleUrlTestOptions();
+            document.getElementById('groupModal').style.display = 'block';
+        }
+        
+        function showAddRuleModal() {
+            document.getElementById('ruleModalTitle').textContent = '添加规则';
+            document.getElementById('ruleForm').reset();
+            document.getElementById('ruleIndex').value = '';
+            document.getElementById('ruleModal').style.display = 'block';
+        }
+        
+        function editRule(index) {
+            const r = allRules[index].split(',');
+            document.getElementById('ruleModalTitle').textContent = '编辑规则';
+            document.getElementById('ruleIndex').value = index;
+            document.getElementById('ruleType').value = r[0];
+            document.getElementById('ruleValue').value = r[1];
+            document.getElementById('ruleProxy').value = r[2];
+            document.getElementById('ruleNoResolve').checked = r[3] === 'no-resolve';
+            document.getElementById('ruleModal').style.display = 'block';
+        }
+        
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        
+        // 代理组表单提交
+        document.getElementById('groupForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('groupName').value,
+                old_name: document.getElementById('groupOldName').value,
+                type: document.getElementById('groupType').value,
+                proxies: Array.from(document.getElementById('groupProxies').selectedOptions).map(o => o.value)
+            };
+            
+            if (data.type === 'url-test') {
+                data.url = document.getElementById('groupUrl').value;
+                data.interval = parseInt(document.getElementById('groupInterval').value);
+                data.tolerance = parseInt(document.getElementById('groupTolerance').value);
+            }
+            
+            const url = data.old_name ? '/api/proxy-groups/update' : '/api/proxy-groups/add';
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            alert(result.message);
+            if (result.success) {
+                closeModal('groupModal');
+                loadProxyGroups();
+            }
+        };
+        
+        // 规则表单提交
+        document.getElementById('ruleForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const data = {
+                type: document.getElementById('ruleType').value,
+                value: document.getElementById('ruleValue').value,
+                proxy: document.getElementById('ruleProxy').value,
+                no_resolve: document.getElementById('ruleNoResolve').checked
+            };
+            
+            const index = document.getElementById('ruleIndex').value;
+            if (index !== '') {
+                data.index = parseInt(index);
+            }
+            
+            const url = index !== '' ? '/api/rules/update' : '/api/rules/add';
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            alert(result.message);
+            if (result.success) {
+                closeModal('ruleModal');
+                loadRules();
+            }
+        };
+        
+        async function deleteGroup(name) {
+            if (!confirm('确定删除该代理组？')) return;
+            const res = await fetch('/api/proxy-groups/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name})
+            });
+            const result = await res.json();
+            alert(result.message);
+            loadProxyGroups();
+        }
+        
+        async function deleteRule(index) {
+            if (!confirm('确定删除该规则？')) return;
+            const res = await fetch('/api/rules/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({index})
+            });
+            const result = await res.json();
+            alert(result.message);
+            loadRules();
+        }
+        
+        async function refreshSubscription() {
+            const url = document.getElementById('subscriptionUrl').value;
+            if (!url) {
+                alert('请输入订阅 URL');
+                return;
+            }
+            const res = await fetch('/api/config/refresh', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({subscription_url: url})
+            });
+            const result = await res.json();
+            alert(result.message);
+            if (result.success) {
+                loadProxies();
+                loadProxyGroups();
+                loadRules();
+            }
+        }
+        
+        async function exportConfig() {
+            const res = await fetch('/api/config/export');
+            const data = await res.json();
+            const blob = new Blob([data.config], {type: 'text/yaml'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'config.yaml';
+            a.click();
+        }
+        
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
