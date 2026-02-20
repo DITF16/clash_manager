@@ -515,42 +515,44 @@ function removeProxy(name) {
     }
     
     function renderRules() {
-        const container = document.getElementById('rulesList');
-        const start = (currentPage - 1) * rulesPerPage;
-        const end = start + rulesPerPage;
-        const pageRules = filteredRules.slice(start, end);
-        
-        if (pageRules.length === 0) {
-            container.innerHTML = '<div class="empty-state">暂无规则，点击"添加规则"创建</div>';
-            renderPagination();
-            return;
-        }
-        
-        container.innerHTML = pageRules.map((r, localIndex) => {
-            const globalIndex = start + localIndex;
-            const parts = r.split(',');
-            return `
-                <div class="list-item rule-item">
-                    <div class="item-info">
-                        <span class="badge badge-${getRuleTypeColor(parts[0])}">${parts[0]}</span>
-                        <code class="rule-value">${parts[1]}</code>
-                        <span class="rule-arrow">→</span>
-                        <span class="rule-proxy">${parts[2]}</span>
-                        ${parts[3] ? '<span class="badge badge-info">no-resolve</span>' : ''}
-                    </div>
-                    <div class="item-actions">
-                        <button onclick="editRule(${globalIndex})" class="btn btn-sm btn-primary">编辑</button>
-                        <button onclick="moveRuleUp(${globalIndex})" class="btn btn-sm" title="上移">↑</button>
-                        <button onclick="moveRuleDown(${globalIndex})" class="btn btn-sm" title="下移">↓</button>
-                        <button onclick="deleteRule(${globalIndex})" class="btn btn-sm btn-danger">删除</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-        
-        renderPagination();
-    }
-    
+         const container = document.getElementById('rulesList');
+         const start = (currentPage - 1) * rulesPerPage;
+         const end = start + rulesPerPage;
+         const pageRules = filteredRules.slice(start, end);
+         
+         if (pageRules.length === 0) {
+             container.innerHTML = '<div class="empty-state">暂无规则，点击"添加规则"创建</div>';
+             renderPagination();
+             return;
+         }
+         
+         container.innerHTML = pageRules.map((r, localIndex) => {
+             // 找到规则在原始数组中的真实索引
+             const realIndex = allRules.indexOf(r);
+             const parts = r.split(',');
+             return `
+                 <div class="list-item rule-item">
+                     <div class="item-info">
+                         <span class="badge badge-${getRuleTypeColor(parts[0])}">${parts[0]}</span>
+                         <code class="rule-value">${parts[1]}</code>
+                         <span class="rule-arrow">→</span>
+                         <span class="rule-proxy">${parts[2]}</span>
+                         ${parts[3] ? '<span class="badge badge-info">no-resolve</span>' : ''}
+                     </div>
+                     <div class="item-actions">
+                         <button onclick="editRule(${realIndex})" class="btn btn-sm btn-primary">编辑</button>
+                         <button onclick="moveRuleUp(${realIndex})" class="btn btn-sm" title="上移">↑</button>
+                         <button onclick="moveRuleDown(${realIndex})" class="btn btn-sm" title="下移">↓</button>
+                         <button onclick="deleteRule(${realIndex})" class="btn btn-sm btn-danger">删除</button>
+                     </div>
+                 </div>
+             `;
+          }).join('');
+         
+         renderPagination();
+     }
+
+
     function getRuleTypeColor(type) {
         const colors = {
             'DOMAIN-SUFFIX': 'primary',
